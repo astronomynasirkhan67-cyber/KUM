@@ -2,8 +2,7 @@
 
 An offline-first Android prototype. It does not need an account, cloud server, analytics SDK, or runtime internet connection.
 
-## Current MVP
-- Parent dashboard protected by Android strong biometric authentication.
+## Build compatibility fix\n- MainActivity extends `AppCompatActivity` because AndroidX `BiometricPrompt` requires a `FragmentActivity`; AppCompatActivity provides that base class.\n\n## Current MVP\n- Parent dashboard protected by Android strong biometric authentication.
 - One Protection ON/OFF switch.
 - When ON, a local Android `VpnService` installs IPv4 and IPv6 default routes and discards packets. This blocks Wi-Fi and mobile-data internet traffic for the device while the VPN remains active.
 - When OFF, the VPN service stops and normal connectivity returns.

@@ -1,6 +1,5 @@
 package com.nk.kum
 
-import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -9,12 +8,13 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.graphics.Color
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executor
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
     private val requestVpn = 701
     private lateinit var status: TextView
     private lateinit var toggle: Button
