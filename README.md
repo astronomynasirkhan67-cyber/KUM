@@ -1,24 +1,11 @@
-# KUM — Kids Usage Manager (MVP)
+# KUM - Kids Usage Manager
 
-An offline-first Android prototype. It does not need an account, cloud server, analytics SDK, or runtime internet connection.
+Parent-locked (fingerprint) app that stops kids from using the phone.
 
-## Build compatibility fix
-- MainActivity extends `AppCompatActivity` because AndroidX `BiometricPrompt` requires a `FragmentActivity`; AppCompatActivity provides that base class.
+- No VPN, so no key icon in the status bar.
+- Protection ON: every app except KUM, Home and Phone is covered by a loading spinner that never finishes (no message, no popup).
+- Setup: install the APK, open KUM, tap "Enable KUM Guard (Accessibility)" and switch it on, come back and tap "Turn Protection ON".
+- Android 13+ may block this for APKs installed outside the Play Store: open Settings > Apps > KUM > three dots > "Allow restricted settings", then enable KUM Guard.
+- While protection is ON, Settings is also covered, so turn protection OFF in KUM first (fingerprint) when you need Settings.
 
-## Current MVP
-- Parent dashboard protected by Android strong biometric authentication.
-- One Protection ON/OFF switch.
-- When ON, a local Android `VpnService` installs IPv4 and IPv6 default routes and discards packets. This blocks Wi-Fi and mobile-data internet traffic for the device while the VPN remains active.
-- When OFF, the VPN service stops and normal connectivity returns.
-
-## Important limitations
-- Android displays a system VPN-consent dialog the first time. The user must approve it.
-- A normal app cannot silently force VPN permission, prevent the user from revoking it, or guarantee protection after force-stop/uninstall/reboot on every device.
-- Strong biometric authentication may use a supported strong biometric, not necessarily fingerprint-only on every phone. Enrol the parent's fingerprint in Android Settings.
-- This MVP blocks internet for the whole device; it does not yet implement per-app allow/deny lists.
-- VPN routing and OEM battery/background restrictions vary by Android version and manufacturer. Test on the target phone before relying on it for child safety.
-- This app does not block emergency calling or replace Android's supervised/managed-device controls.
-- The Android build downloads Gradle/Android dependencies during CI. The installed app itself has no online features and makes no network requests.
-
-## Build
-Push this repository to GitHub, then run **Actions → Build KUM APK → Run workflow**. Download the `KUM-debug-apk` artifact.
+Build: push to GitHub, the Actions workflow produces `KUM-debug-apk`.

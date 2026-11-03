@@ -1,7 +1,8 @@
 package com.nk.kum
 
 import android.content.Intent
-import android.net.VpnService
+import android.content.ComponentName
+import android.provider.Settings
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
@@ -15,7 +16,6 @@ import androidx.core.content.ContextCompat
 import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
-    private val requestVpn = 701
     private lateinit var status: TextView
     private lateinit var toggle: Button
     private var unlocked = false
@@ -89,17 +89,29 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { requestProtectionChange() }
         }
         val info = TextView(this).apply {
-            text = "Protection ON routes device internet into a local VPN and discards packets.\nNo cloud account or remote server is used."
+            text = "Protection ON covers every app except Home, Phone and KUM with a loading screen that never finishes.\nNo VPN, no cloud account, no server."
             textSize = 13f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+        }
+        val guard = Button(this).apply {
+            text = "Enable KUM Guard (Accessibility)"
+            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
         val lock = Button(this).apply {
             text = "Lock Parent Dashboard"
             setOnClickListener { unlocked = false; showLockedScreen(); authenticate() }
         }
         layout.addView(title); layout.addView(status); layout.addView(toggle)
-        layout.addView(info); layout.addView(lock)
+        layout.addView(info); layout.addView(guard); layout.addView(lock)
         setContentView(layout)
         refreshState()
+    }
+
+    private fun isGuardEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val cn = ComponentName(this, KumGuardService::class.java)
+        return enabled.split(':').any {
+            it.equals(cn.flattenToString(), true) || it.equals(cn.flattenToShortString(), true)
+        }
     }
 
     private fun requestProtectionChange() {
@@ -107,34 +119,23 @@ class MainActivity : AppCompatActivity() {
         val isOn = prefs.getBoolean("protection_on", false)
         if (isOn) {
             prefs.edit().putBoolean("protection_on", false).commit()
-            stopService(Intent(this, BlockVpnService::class.java))
-            refreshState()
         } else {
-            val prepare = VpnService.prepare(this)
-            if (prepare != null) startActivityForResult(prepare, requestVpn)
-            else startBlockService()
+            if (!isGuardEnabled()) {
+                status.text = "First enable KUM Guard in Accessibility settings (tap the button below), then turn Protection ON."
+                return
+            }
+            prefs.edit().putBoolean("protection_on", true).commit()
         }
-    }
-
-    @Deprecated("Deprecated by Android; retained for broad device compatibility")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == requestVpn) {
-            if (resultCode == RESULT_OK) startBlockService()
-            else status.text = "VPN permission was not granted. Protection is OFF."
-        }
-    }
-
-    private fun startBlockService() {
-        prefs.edit().putBoolean("protection_on", true).commit()
-        val intent = Intent(this, BlockVpnService::class.java)
-        ContextCompat.startForegroundService(this, intent)
         refreshState()
     }
 
     private fun refreshState() {
         val on = prefs.getBoolean("protection_on", false)
-        status.text = if (on) "PROTECTION ON\nWi-Fi + Mobile Data blocked" else "PROTECTION OFF\nInternet access is unchanged"
+        status.text = when {
+            on && !isGuardEnabled() -> "PROTECTION ON\nbut KUM Guard is disabled in Accessibility settings"
+            on -> "PROTECTION ON\nApps will only show loading"
+            else -> "PROTECTION OFF\nApps work normally"
+        }
         toggle.text = if (on) "Turn Protection OFF" else "Turn Protection ON"
     }
 

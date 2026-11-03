@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guard_label">KUM Guard</string>
+    <string name="guard_description">Lets KUM show a loading screen over apps while parent protection is ON.</string>
+</resources>
