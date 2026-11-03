@@ -24,11 +24,14 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.util.concurrent.Executor
 
 private data class AppItem(val pkg: String, val label: String, val icon: Drawable)
@@ -151,6 +154,11 @@ class MainActivity : AppCompatActivity() {
         layout.addView(title)
         layout.addView(lockStatus)
         layout.addView(retry)
+        ViewCompat.setOnApplyWindowInsetsListener(layout) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(dp(28), bars.top + dp(36), dp(28), bars.bottom + dp(36))
+            insets
+        }
         setContentView(layout)
     }
 
@@ -217,7 +225,7 @@ class MainActivity : AppCompatActivity() {
             text = "Enable KUM Guard (Accessibility)"
             setTextColor(darkText)
             background = rounded(Color.rgb(255, 213, 79), 12)
-            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            setOnClickListener { openGuardSetup() }
         }
         card.addView(dashStatus)
         card.addView(toggleBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
@@ -277,6 +285,12 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, 0, bars.right, bars.bottom)
+            header.setPadding(dp(20), bars.top + dp(14), dp(20), dp(16))
+            insets
+        }
         setContentView(root)
         refreshState()
 
@@ -423,6 +437,33 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Protection ----------
 
+    // Prominent disclosure + consent shown BEFORE sending the parent to Accessibility settings.
+    private fun openGuardSetup() {
+        if (prefs.getBoolean("guard_consent", false)) {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("KUM Guard needs Accessibility access")
+            .setMessage(
+                "KUM uses Android's Accessibility service for one purpose: parental control.\n\n" +
+                "What it does:\n" +
+                "- It checks the name of the app that is open on this phone.\n" +
+                "- If that app is one you chose to block, and protection is ON, it shows a loading screen over it.\n\n" +
+                "What it does NOT do:\n" +
+                "- It does not read, record or store text, passwords, messages or anything on the screen.\n" +
+                "- It does not send any data anywhere. KUM has no internet permission.\n\n" +
+                "You stay in control: you pick the apps, and you can switch KUM Guard off any time in Settings > Accessibility."
+            )
+            .setCancelable(false)
+            .setPositiveButton("Agree and continue") { _, _ ->
+                prefs.edit().putBoolean("guard_consent", true).commit()
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton("Decline", null)
+            .show()
+    }
+
     private fun isGuardEnabled(): Boolean {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
             ?: return false
@@ -442,7 +483,7 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putBoolean(KumGuardService.KEY_ON, false).commit()
         } else {
             if (!isGuardEnabled()) {
-                Toast.makeText(this, "First enable KUM Guard in Accessibility settings (yellow button).", Toast.LENGTH_LONG).show()
+                openGuardSetup()
                 return
             }
             if (blockedSet().isEmpty()) {

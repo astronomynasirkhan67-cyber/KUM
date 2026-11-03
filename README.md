@@ -11,3 +11,6 @@ Parent-locked (fingerprint) app that stops kids from using chosen apps.
 - Only block Settings if you want to stop the child from switching KUM Guard off. Then turn protection OFF in KUM first when you need Settings.
 
 Build: push to GitHub, the Actions workflow produces `KUM-debug-apk`.
+
+## Google Play
+See PLAY_STORE_CHECKLIST.md (signed .aab build, store listing, accessibility declaration) and PRIVACY_POLICY.md.
