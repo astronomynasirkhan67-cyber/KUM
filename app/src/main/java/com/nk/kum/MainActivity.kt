@@ -27,6 +27,11 @@ class MainActivity : AppCompatActivity() {
         authenticate()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (unlocked && ::toggle.isInitialized) refreshState()
+    }
+
     private fun authenticate() {
         val manager = BiometricManager.from(this)
         val canAuth = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -101,8 +106,8 @@ class MainActivity : AppCompatActivity() {
         if (!unlocked) { authenticate(); return }
         val isOn = prefs.getBoolean("protection_on", false)
         if (isOn) {
+            prefs.edit().putBoolean("protection_on", false).commit()
             stopService(Intent(this, BlockVpnService::class.java))
-            prefs.edit().putBoolean("protection_on", false).apply()
             refreshState()
         } else {
             val prepare = VpnService.prepare(this)
@@ -121,9 +126,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBlockService() {
+        prefs.edit().putBoolean("protection_on", true).commit()
         val intent = Intent(this, BlockVpnService::class.java)
         ContextCompat.startForegroundService(this, intent)
-        prefs.edit().putBoolean("protection_on", true).apply()
         refreshState()
     }
 
