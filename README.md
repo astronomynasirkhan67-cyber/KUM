@@ -1,16 +1,13 @@
-# KUM - Kids Usage Manager
+# KUM - Kids Usage Manager (VPN allow-list build)
 
-Parent-locked (fingerprint) app that stops kids from using chosen apps.
+Parent-locked (fingerprint) parental internet control.
 
-- No VPN, so no key icon in the status bar.
-- In the dashboard the parent switches ON the apps to block (video, games, browsers, social...). Switch OFF = allowed.
-- Protection ON: only the blocked apps are covered by a loading spinner that never finishes (no message, no popup). Home, Phone, KUM and every allowed app work normally.
-- The dashboard locks again every time KUM is left, so the fingerprint is needed each time.
-- Setup: install the APK, open KUM, tap "Enable KUM Guard (Accessibility)" and switch it on, come back, choose apps, tap "Turn Protection ON".
-- Android 13+ may block this for APKs installed outside the Play Store: Settings > Apps > KUM > three dots > "Remove setting restrictions" (or "Allow restricted settings"), then enable KUM Guard. Also switch off "Pause app activity if unused" for KUM.
-- Only block Settings if you want to stop the child from switching KUM Guard off. Then turn protection OFF in KUM first when you need Settings.
+- Uses Android `VpnService`; Accessibility Service is not required.
+- Parent turns ON the switch beside apps that are allowed to access the internet. The installed-app list includes packages without launcher icons too.
+- While protection is ON, every other app's IPv4 and IPv6 traffic is routed into a local VPN and discarded.
+- Example: allow WhatsApp only; all other apps are blocked.
+- No traffic is forwarded, inspected, decrypted, recorded, or sent to a server.
+- Android requires a one-time system VPN consent dialog and an ongoing foreground-service notification while a VPN is active. Android may show a VPN/key indicator; third-party apps cannot legitimately hide the system VPN indicator.
+- The app does not require Play Protect to be disabled. Sideloading may still require the user to approve installing apps from that source, and Play Protect may display its normal warning/scanning UI.
 
-Build: push to GitHub, the Actions workflow produces `KUM-debug-apk`.
-
-## Google Play
-See PLAY_STORE_CHECKLIST.md (signed .aab build, store listing, accessibility declaration) and PRIVACY_POLICY.md.
+Build: run the GitHub Actions workflow or `./gradlew assembleDebug`.

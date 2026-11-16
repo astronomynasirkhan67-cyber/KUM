@@ -2,6 +2,8 @@ package com.nk.kum
 
 import android.content.ComponentName
 import android.content.Intent
+import android.net.VpnService
+import android.os.Build
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -222,10 +224,10 @@ class MainActivity : AppCompatActivity() {
         }
         guardBtn = Button(this).apply {
             isAllCaps = false
-            text = "Enable KUM Guard (Accessibility)"
+            text = "VPN protection is used — no Accessibility access"
             setTextColor(darkText)
             background = rounded(Color.rgb(255, 213, 79), 12)
-            setOnClickListener { openGuardSetup() }
+            setOnClickListener { }
         }
         card.addView(dashStatus)
         card.addView(toggleBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
@@ -241,13 +243,13 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(16), dp(8), dp(14), dp(0))
         }
         actions.addView(TextView(this).apply {
-            text = "Choose apps to block"
+            text = "Choose apps allowed to use internet"
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(darkText)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        actions.addView(smallButton("Block all") { setAll(true) })
-        actions.addView(smallButton("Allow all") { setAll(false) })
+        actions.addView(smallButton("Block all") { setAll(false) })
+        actions.addView(smallButton("Allow all") { setAll(true) })
         root.addView(actions)
 
         val search = EditText(this).apply {
@@ -320,32 +322,24 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Apps ----------
 
+    @Suppress("DEPRECATION")
     private fun loadApps(): List<AppItem> {
         val pm = packageManager
-        val homes = HashSet<String>()
-        try {
-            val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-            for (ri in pm.queryIntentActivities(homeIntent, 0)) homes.add(ri.activityInfo.packageName)
-        } catch (_: Exception) {
-        }
-        val skip = HashSet<String>(homes)
-        skip.add(packageName)
-        skip.add("com.android.incallui")
-        skip.add("com.android.phone")
-        skip.add("com.android.server.telecom")
-        try {
-            val dialer = (getSystemService(TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
-            if (dialer != null) skip.add(dialer)
-        } catch (_: Exception) {
-        }
-        val seen = HashSet<String>()
         val out = ArrayList<AppItem>()
-        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        for (ri in pm.queryIntentActivities(launcherIntent, 0)) {
-            val pkg = ri.activityInfo.packageName
-            if (pkg in skip || !seen.add(pkg)) continue
-            out.add(AppItem(pkg, ri.loadLabel(pm).toString(), ri.loadIcon(pm)))
-        }
+        val seen = HashSet<String>()
+        try {
+            // QUERY_ALL_PACKAGES is declared because app-level parental network rules
+            // need the parent to see installed apps, including apps without a launcher icon.
+            for (info in pm.getInstalledApplications(0)) {
+                val pkg = info.packageName
+                if (pkg == packageName || !seen.add(pkg)) continue
+                try {
+                    val label = pm.getApplicationLabel(info).toString()
+                    val icon = pm.getApplicationIcon(info)
+                    out.add(AppItem(pkg, label, icon))
+                } catch (_: Exception) { }
+            }
+        } catch (_: Exception) { }
         out.sortBy { it.label.lowercase() }
         return out
     }
@@ -356,23 +350,68 @@ class MainActivity : AppCompatActivity() {
         adapter?.notifyDataSetChanged()
     }
 
-    private fun blockedSet(): MutableSet<String> =
-        HashSet(prefs.getStringSet(KumGuardService.KEY_BLOCKED, emptySet()) ?: emptySet())
+    private fun allowedSet(): MutableSet<String> =
+        HashSet(prefs.getStringSet(KEY_ALLOWED, emptySet()) ?: emptySet())
 
-    private fun setBlocked(pkg: String, blocked: Boolean) {
-        val s = blockedSet()
-        if (blocked) s.add(pkg) else s.remove(pkg)
-        prefs.edit().putStringSet(KumGuardService.KEY_BLOCKED, s).commit()
+    private fun setAllowed(pkg: String, allowed: Boolean) {
+        val set = allowedSet()
+        if (allowed) set.add(pkg) else set.remove(pkg)
+        prefs.edit().putStringSet(KEY_ALLOWED, set).commit()
+        restartVpnIfActive()
     }
 
-    private fun setAll(blocked: Boolean) {
-        val s = blockedSet()
-        for (a in shown) {
-            if (blocked) s.add(a.pkg) else s.remove(a.pkg)
+    private fun setAll(allowed: Boolean) {
+        val set = allowedSet()
+        for (app in shown) {
+            if (allowed) set.add(app.pkg) else set.remove(app.pkg)
         }
-        prefs.edit().putStringSet(KumGuardService.KEY_BLOCKED, s).commit()
+        prefs.edit().putStringSet(KEY_ALLOWED, set).commit()
+        restartVpnIfActive()
         adapter?.notifyDataSetChanged()
         refreshState()
+    }
+
+    private fun restartVpnIfActive() {
+        if (!prefs.getBoolean(KEY_ON, false)) return
+        startVpnService()
+    }
+
+    private fun startVpnService() {
+        val intent = Intent(this, BlockVpnService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
+    }
+
+    private fun requestVpnPermissionAndStart() {
+        val prepare = VpnService.prepare(this)
+        if (prepare != null) {
+            startActivityForResult(prepare, VPN_REQUEST)
+        } else {
+            prefs.edit().putBoolean(KEY_ON, true).commit()
+            startVpnService()
+            refreshState()
+        }
+    }
+
+    @Deprecated("Uses Android's VPN consent activity")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == VPN_REQUEST) {
+            if (resultCode == RESULT_OK) {
+                prefs.edit().putBoolean(KEY_ON, true).commit()
+                startVpnService()
+            } else {
+                prefs.edit().putBoolean(KEY_ON, false).commit()
+                Toast.makeText(this, "VPN permission is required for KUM blocking.", Toast.LENGTH_LONG).show()
+            }
+            refreshState()
+        }
+    }
+
+    companion object {
+        private const val KEY_ALLOWED = "allowed_pkgs"
+        private const val KEY_ON = "protection_on"
+        private const val VPN_REQUEST = 7104
     }
 
     private inner class AppAdapter : BaseAdapter() {
@@ -383,7 +422,7 @@ class MainActivity : AppCompatActivity() {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
             val item = shown[position]
             val ctx = this@MainActivity
-            val isBlocked = blockedSet().contains(item.pkg)
+            val isAllowed = allowedSet().contains(item.pkg)
             val row = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -405,24 +444,17 @@ class MainActivity : AppCompatActivity() {
                 ellipsize = TextUtils.TruncateAt.END
             }
             val state = TextView(ctx).apply { textSize = 12f }
-            applyStateText(state, isBlocked)
+            applyStateText(state, isAllowed)
             texts.addView(name)
             texts.addView(state)
             row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
             val sw = SwitchCompat(ctx).apply {
-                isChecked = isBlocked
+                isChecked = isAllowed
                 setOnCheckedChangeListener { _, checked ->
-                    setBlocked(item.pkg, checked)
+                    setAllowed(item.pkg, checked)
                     applyStateText(state, checked)
                     refreshState()
-                    if (checked && item.pkg == "com.android.settings") {
-                        Toast.makeText(
-                            ctx,
-                            "Settings will be blocked while protection is ON. Turn protection OFF in KUM to open it.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
                 }
             }
             row.addView(sw)
@@ -430,86 +462,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun applyStateText(tv: TextView, blocked: Boolean) {
-        tv.text = if (blocked) "Blocked" else "Allowed"
-        tv.setTextColor(if (blocked) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50))
+    private fun applyStateText(tv: TextView, allowed: Boolean) {
+        tv.text = if (allowed) "Internet allowed" else "Internet blocked"
+        tv.setTextColor(if (allowed) Color.rgb(46, 125, 50) else Color.rgb(198, 40, 40))
     }
 
     // ---------- Protection ----------
 
     // Prominent disclosure + consent shown BEFORE sending the parent to Accessibility settings.
-    private fun openGuardSetup() {
-        if (prefs.getBoolean("guard_consent", false)) {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("KUM Guard needs Accessibility access")
-            .setMessage(
-                "KUM uses Android's Accessibility service for one purpose: parental control.\n\n" +
-                "What it does:\n" +
-                "- It checks the name of the app that is open on this phone.\n" +
-                "- If that app is one you chose to block, and protection is ON, it shows a loading screen over it.\n\n" +
-                "What it does NOT do:\n" +
-                "- It does not read, record or store text, passwords, messages or anything on the screen.\n" +
-                "- It does not send any data anywhere. KUM has no internet permission.\n\n" +
-                "You stay in control: you pick the apps, and you can switch KUM Guard off any time in Settings > Accessibility."
-            )
-            .setCancelable(false)
-            .setPositiveButton("Agree and continue") { _, _ ->
-                prefs.edit().putBoolean("guard_consent", true).commit()
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }
-            .setNegativeButton("Decline", null)
-            .show()
-    }
-
-    private fun isGuardEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-            ?: return false
-        val cn = ComponentName(this, KumGuardService::class.java)
-        return enabled.split(':').any {
-            it.equals(cn.flattenToString(), true) || it.equals(cn.flattenToShortString(), true)
-        }
-    }
-
     private fun requestProtectionChange() {
         if (!unlocked) {
             authenticate()
             return
         }
-        val isOn = prefs.getBoolean(KumGuardService.KEY_ON, false)
-        if (isOn) {
-            prefs.edit().putBoolean(KumGuardService.KEY_ON, false).commit()
+        if (prefs.getBoolean(KEY_ON, false)) {
+            prefs.edit().putBoolean(KEY_ON, false).commit()
+            stopService(Intent(this, BlockVpnService::class.java))
+            refreshState()
         } else {
-            if (!isGuardEnabled()) {
-                openGuardSetup()
-                return
-            }
-            if (blockedSet().isEmpty()) {
-                Toast.makeText(this, "Choose at least one app to block first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            prefs.edit().putBoolean(KumGuardService.KEY_ON, true).commit()
+            requestVpnPermissionAndStart()
         }
-        refreshState()
     }
 
     private fun refreshState() {
         if (!::dashStatus.isInitialized || !::toggleBtn.isInitialized || !::guardBtn.isInitialized) return
-        val on = prefs.getBoolean(KumGuardService.KEY_ON, false)
-        val blocked = blockedSet()
-        val guard = isGuardEnabled()
-        val sb = StringBuilder()
-        if (on) sb.append("Protection is ON\n${blocked.size} app(s) blocked")
-        else sb.append("Protection is OFF\nAll apps work normally")
-        if (on && !guard) sb.append("\nKUM Guard is switched off in Accessibility settings")
-        if (on && blocked.contains("com.android.settings")) {
-            sb.append("\nSettings is blocked. Turn protection OFF here to open it.")
+        val on = prefs.getBoolean(KEY_ON, false)
+        val allowed = allowedSet()
+        dashStatus.text = if (on) {
+            "VPN protection is ON\\n${allowed.size} app(s) allowed internet\\nAll other app traffic is blocked"
+        } else {
+            "Protection is OFF\\nAll apps can use internet"
         }
-        dashStatus.text = sb.toString()
         toggleBtn.text = if (on) "Turn Protection OFF" else "Turn Protection ON"
         toggleBtn.background = rounded(if (on) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50), 12)
-        guardBtn.visibility = if (guard) View.GONE else View.VISIBLE
+        guardBtn.visibility = View.GONE
     }
 }

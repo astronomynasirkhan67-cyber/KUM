@@ -18,10 +18,6 @@ Never lose the keystore: you need the same one for every update.
 4. Store listing: icon `play-store-assets/app-icon-512.png`, feature graphic `play-store-assets/feature-graphic-1024x500.png`, at least 2 phone screenshots (take them from your phone), short + full description.
 5. Privacy policy: host `PRIVACY_POLICY.md` as a web page (e.g. GitHub Pages or your website), fill the [DATE] and [YOUR EMAIL], paste the link.
 6. App content > Data safety: collects no data, shares no data.
-7. App content > Accessibility services declaration (suggested answers):
-   - Why does the app use the Accessibility API? App functionality (parental control).
-   - Core feature: A parent chooses apps to block; while protection is ON, KUM Guard detects which app is in the foreground and shows a loading screen over the blocked ones.
-   - Data accessed: only the package name of the foreground app. Nothing is collected, stored or shared.
-   - Video: record your phone screen: open KUM, fingerprint, tap "Enable KUM Guard", show the disclosure dialog, tap Agree, enable the service in Accessibility settings, choose an app, turn protection ON, open the blocked app and show the loading screen.
+7. Declare the VPN service accurately in Play Console. Explain that the parent explicitly enables a local VPN to enforce an app internet allow-list; blocked app packets are discarded locally and are not inspected, logged, or forwarded. Provide any required VPN disclosure and consent flow.
 8. Content rating questionnaire, target audience: adults/parents (not children).
 9. If your developer account is a new personal account, Google may require a closed test with a minimum number of testers for some days before production. Check the current rule in Play Console.

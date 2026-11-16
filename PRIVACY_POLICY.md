@@ -2,16 +2,18 @@
 
 Last updated: [DATE]
 
-KUM is a parental control app. It runs entirely on your phone.
+KUM is a parental-control app that runs locally on the device.
 
-**Data we collect:** none. KUM has no internet permission, no account, no ads, no analytics and no server. Nothing leaves your phone.
+**Data collection:** KUM does not collect, transmit, or sell personal data. It does not use an account, ads, analytics, or a remote server.
 
-**Data stored on your phone:** only your choices: which apps you chose to block, whether protection is ON, and that you agreed to the Accessibility disclosure. You can delete all of it by uninstalling the app.
+**On-device settings:** KUM stores the parent's app allow-list and whether VPN protection is enabled. These settings remain on the device.
 
-**Accessibility service:** KUM Guard uses Android's Accessibility service only to find out which app is open, so it can show a loading screen over apps you chose to block while protection is ON. It does not read, record or store text, passwords, messages or other screen content.
+**VPN operation:** When protection is enabled, Android routes network packets from apps not on the parent's allow-list into KUM's local VPN interface. KUM discards those packets. It does not decrypt, inspect, record, or forward their contents. Apps on the allow-list are excluded from the VPN and use the device's normal network connection.
 
-**Fingerprint:** KUM uses Android's built-in fingerprint check to protect the parent dashboard. KUM never receives or stores your fingerprint.
+**VPN disclosure:** Android requires the user to approve VPN access and displays system VPN status/foreground-service information while protection is active. KUM cannot hide Android's system VPN indicator.
 
-**Children:** KUM is made for parents. It does not collect any information from children.
+**Fingerprint:** KUM uses Android's system biometric prompt to protect the parent dashboard. KUM never receives or stores fingerprint data.
+
+**Children:** KUM is designed for parents and does not collect information from children.
 
 **Contact:** [YOUR EMAIL]
