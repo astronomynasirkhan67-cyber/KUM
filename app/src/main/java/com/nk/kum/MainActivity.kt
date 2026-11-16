@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -50,7 +52,7 @@ class MainActivity : AppCompatActivity() {
     private var shown: List<AppItem> = emptyList()
     private var query = ""
     private var adapter: AppAdapter? = null
-    private val prefs by lazy { getSharedPreferences(KumGuardService.PREFS, MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("kum_local", MODE_PRIVATE) }
 
     private val purple = Color.rgb(103, 85, 220)
     private val pageBg = Color.rgb(244, 243, 251)
@@ -328,11 +330,15 @@ class MainActivity : AppCompatActivity() {
         val out = ArrayList<AppItem>()
         val seen = HashSet<String>()
         try {
-            // QUERY_ALL_PACKAGES is declared because app-level parental network rules
-            // need the parent to see installed apps, including apps without a launcher icon.
-            for (info in pm.getInstalledApplications(0)) {
+            // Show user-installed apps that have a launcher icon. This intentionally
+            // excludes Android/system packages and preinstalled system applications.
+            val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            for (activity in pm.queryIntentActivities(launcherIntent, 0)) {
+                val info = activity.activityInfo?.applicationInfo ?: continue
                 val pkg = info.packageName
-                if (pkg == packageName || !seen.add(pkg)) continue
+                val isSystem = (info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                val isUpdatedSystem = (info.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                if (pkg == packageName || isSystem || isUpdatedSystem || !seen.add(pkg)) continue
                 try {
                     val label = pm.getApplicationLabel(info).toString()
                     val icon = pm.getApplicationIcon(info)
@@ -380,6 +386,8 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, BlockVpnService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
         else startService(intent)
+        // Reflect the real tunnel state instead of leaving the dashboard at "Starting".
+        Handler(Looper.getMainLooper()).postDelayed({ refreshState() }, 800)
     }
 
     private fun requestVpnPermissionAndStart() {
@@ -411,6 +419,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val KEY_ALLOWED = "allowed_pkgs"
         private const val KEY_ON = "protection_on"
+        private const val KEY_ACTIVE = "vpn_active"
+        private const val KEY_ERROR = "vpn_error"
         private const val VPN_REQUEST = 7104
     }
 
@@ -476,7 +486,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (prefs.getBoolean(KEY_ON, false)) {
-            prefs.edit().putBoolean(KEY_ON, false).commit()
+            prefs.edit().putBoolean(KEY_ON, false).putBoolean(KEY_ACTIVE, false).commit()
             stopService(Intent(this, BlockVpnService::class.java))
             refreshState()
         } else {
@@ -487,11 +497,14 @@ class MainActivity : AppCompatActivity() {
     private fun refreshState() {
         if (!::dashStatus.isInitialized || !::toggleBtn.isInitialized || !::guardBtn.isInitialized) return
         val on = prefs.getBoolean(KEY_ON, false)
+        val active = prefs.getBoolean(KEY_ACTIVE, false)
+        val error = prefs.getString(KEY_ERROR, "").orEmpty()
         val allowed = allowedSet()
-        dashStatus.text = if (on) {
-            "VPN protection is ON\\n${allowed.size} app(s) allowed internet\\nAll other app traffic is blocked"
-        } else {
-            "Protection is OFF\\nAll apps can use internet"
+        dashStatus.text = when {
+            on && active -> "VPN protection is ACTIVE\n${allowed.size} app(s) allowed internet\nAll other app traffic is blocked"
+            on && error.isNotBlank() -> "VPN could not start\n$error"
+            on -> "Starting VPN protection…\nWaiting for Android to establish the VPN"
+            else -> "Protection is OFF\nAll apps can use internet"
         }
         toggleBtn.text = if (on) "Turn Protection OFF" else "Turn Protection ON"
         toggleBtn.background = rounded(if (on) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50), 12)

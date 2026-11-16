@@ -11,3 +11,14 @@ Parent-locked (fingerprint) parental internet control.
 - The app does not require Play Protect to be disabled. Sideloading may still require the user to approve installing apps from that source, and Play Protect may display its normal warning/scanning UI.
 
 Build: run the GitHub Actions workflow or `./gradlew assembleDebug`.
+
+
+## App list and VPN filtering update
+
+- The app picker now shows only user-installed apps with launcher icons. Android/system and preinstalled system apps are hidden from the picker.
+- Switch ON means **Internet allowed**. Switch OFF means **Internet blocked** while Protection is active.
+- Allowed package names are excluded from the local VPN; all other app traffic is routed into the local TUN interface and discarded.
+- The dashboard distinguishes an active VPN tunnel from a VPN that is still starting or has failed.
+- Android requires the user to approve the VPN connection. A VPN/key indicator may be shown by Android while this filtering VPN is active.
+
+Build with `gradle assembleDebug`. Test on a spare device: with Protection ON and no apps allowed, verify that a browser cannot load a site; allow only one test app and verify that only that app regains internet. Disable any other VPN during the test.
