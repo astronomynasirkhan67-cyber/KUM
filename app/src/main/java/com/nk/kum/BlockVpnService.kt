@@ -34,7 +34,8 @@ class BlockVpnService : VpnService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (running.get()) shutdown()\n        startBlackholeVpn()
+        if (running.get()) shutdown()
+        startBlackholeVpn()
         return START_STICKY
     }
 
